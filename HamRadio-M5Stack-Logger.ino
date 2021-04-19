@@ -2,104 +2,122 @@
 
 #include <M5Stack.h>
 #include <WiFi.h>
-
-#include "AudioFileSourceSD.h"
-#include "AudioFileSourceID3.h"
-#include "AudioGeneratorWAV.h"
 #include "AudioOutputI2S.h"
-
+#include "AudioFileSourceSD.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioGeneratorWAV.h"
+#include "AudioFileSourceID3.h"
 #include "FT857.h"
+
+#define TEST 0
+#define NORMAL 1
+#define CONTEST 2
+
 FT857 radio;
 
-AudioGeneratorWAV *wav;
+AudioGeneratorMP3 *player;
+//AudioGeneratorWAV *player;
 AudioFileSourceSD *file;
 AudioOutputI2S *out;
 AudioFileSourceID3 *id3;
 
-unsigned int freq = 0;
-unsigned int mode = 255;
-unsigned int sMeter = 255;
+unsigned long freq = 0;
+byte mode = 255;
+byte sMeter = 255;
 bool radioPowerOn = false;
 bool shouldRefresh = true;
-bool testMode = true, contestMode = false, isTx = false;
+bool isTx = false;
+byte playerMode = TEST;
+bool autoMode = true;
+byte secondsBetweenPlaying = 5;
+unsigned long timerRadioRefresh = 0;
+unsigned long timerLoop = 0;
 
 void setup() {
   Serial.println("Starting ...");
 
   randomSeed(analogRead(0));
   
-  out = new AudioOutputI2S(0, 1); // Output to builtInDAC
+  out = new AudioOutputI2S(0, 1);
   out->SetOutputModeMono(true);
-  out->SetGain(1);
-  wav = new AudioGeneratorWAV();
+  out->SetGain(1.0);
+  player = new AudioGeneratorMP3();
 
   M5.begin();
-  M5.Lcd.setBrightness(1);
-  M5.Speaker.setVolume(1);
-  M5.Speaker.update();
-  
-  M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.setTextSize(4);
-  M5.Lcd.drawString("Starting", 160, 100);
-
+  SD.begin();
   radio.begin();
-  //checkRadio();
+
+  if (radioPowerOn) {
+    checkRadio();
+  }
+  
+  M5.Lcd.setBrightness(100);
+  M5.Lcd.setTextDatum(MC_DATUM);
 }
 
-void loop() {  
-  // update button state
+void loop() {
   M5.update();
-  
-  if (M5.BtnC.wasPressed()) {
-    testMode = !testMode;
-    shouldRefresh = true;
-  }
-  
-  if (M5.BtnA.wasPressed()) {
-    contestMode = !contestMode;
-    shouldRefresh = true;
-  }
 
   bool newIsTx = radioPowerOn && radio.isTx();
   shouldRefresh |= newIsTx != isTx;
   isTx = newIsTx;
 
-  if (M5.BtnB.wasPressed() && !wav->isRunning() && !isTx) {
-    playAudioAndTx();
-    shouldRefresh = true;
-  }
-
-  if (wav->isRunning()) {
-    if (!wav->loop()) {
-      wav->stop();
-      
-      if (radioPowerOn) {
-        radio.setPtt(false);
-      }
-  
-      delete id3;
-      delete file;
-
+  if (!player->isRunning() && !isTx) {
+    if (autoMode && (millis() - timerLoop) >= 1000 * secondsBetweenPlaying) {
+      playAudioAndTx();
       shouldRefresh = true;
+    } else {
+      if (M5.BtnB.wasReleased()) {
+        autoMode = !autoMode;
+        timerLoop = millis();
+        shouldRefresh = true;
+      } else if (M5.BtnC.wasReleased()) {
+        secondsBetweenPlaying += 5;
+        if (secondsBetweenPlaying > 35) {
+          secondsBetweenPlaying = 5;
+        }
+        timerLoop = millis();
+        shouldRefresh = true;
+      } else if (M5.BtnA.pressedFor(2000, 2000)) {
+        checkRadio();
+        shouldRefresh = true;
+      } else if (M5.BtnB.pressedFor(2000, 2000)) {
+        playAudioAndTx();
+        shouldRefresh = true;
+      } else if (M5.BtnC.pressedFor(1000, 1000)) {
+        playerMode++;
+        playerMode %= 3;
+        shouldRefresh = true;
+      }
     }
   }
 
+  if (M5.BtnA.wasPressed()) {
+    stopAll(); 
+    shouldRefresh = true;
+  }
+
+  stopPlayerAndRxIfNeeded(false);
+
   if (radioPowerOn) {
-    unsigned int newFreq = (unsigned int) (radio.getFrequency() / 100);
-    shouldRefresh |= newFreq != freq;
-    
-    int newMode = radio.getMode();
-    shouldRefresh |= newMode != mode;
-    
-    int newSMeter = radio.getSMeter();
-    shouldRefresh |= newSMeter != sMeter;
-  
-    if (shouldRefresh) {
+    if (!isTx && (millis() - timerRadioRefresh) >= 1000) {
+      unsigned long newFreq = (unsigned int) (radio.getFrequency() / 100);
+      shouldRefresh |= newFreq != freq;
+      
+      byte newMode = radio.getMode();
+      shouldRefresh |= newMode != mode;
+      
+      byte newSMeter = radio.getSMeter();
+      shouldRefresh |= newSMeter != sMeter;
+      
       freq = newFreq;
       mode = newMode;
       sMeter = newSMeter;
       
+      timerRadioRefresh = millis();
+    }
+    
+    if (shouldRefresh) {
       M5.Lcd.clear();
       M5.Lcd.setTextColor(WHITE);
       M5.Lcd.setTextSize(3);
@@ -108,12 +126,7 @@ void loop() {
       if (isTx) {
         M5.Lcd.setTextColor(RED);
         M5.Lcd.setTextSize(5);
-        if (wav->isRunning()) {
-          M5.Lcd.drawString("Playing & TX !", 160, 100);
-        } else {
-          M5.Lcd.drawString("TX !", 160, 100);
-        }
-        M5.Lcd.setTextSize(3);
+        M5.Lcd.drawString("TX !", 160, 80);
       } else {
         M5.Lcd.drawString("S-" + getStringSMeter(sMeter), 160, 40);
         M5.Lcd.progressBar(20, 60, 10, 10, sMeter / 15);
@@ -122,93 +135,177 @@ void loop() {
   } else if (shouldRefresh) {
     M5.Lcd.clear();
     M5.Lcd.setTextColor(RED);
-    M5.Lcd.setTextSize(5);
-    M5.Lcd.drawString("No radio !", 160, 100);
+    M5.Lcd.setTextSize(3);
+    M5.Lcd.drawString("No radio", 160, 0);
   }
 
   if (shouldRefresh) {
-    if (wav->isRunning()) {
+    if (player->isRunning()) {
       M5.Lcd.setTextColor(GREEN);
-      M5.Lcd.drawString("Playing !", 160, 150);
+      M5.Lcd.setTextSize(5);
+      M5.Lcd.drawString("Playing !", 160, 140);
     }
   
     M5.Lcd.setTextSize(3);
-    if (testMode) {
+    if (playerMode == TEST) {
       M5.Lcd.setTextColor(YELLOW);
-      M5.Lcd.drawString("Mode test", 0, 190);
+      M5.Lcd.drawString("Mode test", 0, 220);
+    } else {  
+      M5.Lcd.setTextColor(GREEN);
+      M5.Lcd.drawString("Mode " + String(playerMode == CONTEST ? "contest" : "normal"), 0, 220);
     }
-  
-    M5.Lcd.setTextColor(GREEN);
-    M5.Lcd.drawString("Mode " + String(contestMode ? "contest" : "normal"), 0, 220);
+
+    M5.Lcd.setTextColor(CYAN);
+    M5.Lcd.drawString((!autoMode ? "No auto " : "Auto ") + String(secondsBetweenPlaying) + "s", 0, 190);
   }
 
   shouldRefresh = false;
 
   delay(10);
+  radio.flushRX();
 }
 
-void playAudioAndTx() {  
-  file = new AudioFileSourceSD(getFileToPlay());
-  id3 = new AudioFileSourceID3(file);    
+void stopPlayerAndRxIfNeeded(bool force) {
+  if (player->isRunning()) {
+    if (!player->loop() || force) {
+      player->stop();
+      
+      delete id3;
+      delete file;
 
-  if (radioPowerOn) {
-    radio.setPtt(true);
-    delay(1000);
+      rx();
+
+      timerLoop = millis();
+    }
   }
 
-  wav->begin(id3, out);
+  if (force) {
+    rx();
+  }
+}
+
+void tx() {
+  if (radioPowerOn) {
+    radio.setMode(CAT_MODE_DIG);
+    radio.setPtt(true);
+    radio.flushRX();
+    isTx = radio.isTx();
+    if (!isTx) {
+      rx();
+      return;
+    }
+    delay(300);
+  }
+}
+
+void rx() {
+  if (radioPowerOn && isTx) {
+    delay(300);
+    radio.flushRX();
+    radio.setPtt(false);
+    radio.flushRX();
+    delay(300);
+    radio.flushRX();
+    radio.setMode(mode);
+    isTx = radio.isTx();
+  }
+}
+
+void stopAll() {
+  stopPlayerAndRxIfNeeded(true);
+  autoMode = false;
+}
+
+void playAudioAndTx() {
+  if (!player->isRunning() && !isTx) {
+    tx();
+  
+    file = new AudioFileSourceSD(getFileToPlay());
+    id3 = new AudioFileSourceID3(file); 
+    player->begin(id3, out);
+  
+    //if (
+    M5.Speaker.mute();
+  }
 }
 
 bool checkRadio() {
-  unsigned long timer = millis();
-  radio.getMode();
-  
-  if (millis() - timer >= 3000) {
-    Serial.println("Radio not ready !");
-    M5.Lcd.clear();
-    M5.Lcd.setTextColor(RED);
-    M5.Lcd.setTextSize(5);
-    M5.Lcd.drawString("No radio !", 160, 100);
+  M5.Lcd.clear();
+  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextSize(5);
+  M5.Lcd.drawString("Radio...", 160, 100);
+    
+  radioPowerOn = false;
 
+  radio.flushRX();
+  unsigned long timer = millis();
+  byte mode = radio.getMode();
+  
+  if (millis() - timer >= 1000 || isModeUnknown(mode)) {
     return false;
   }
 
   radioPowerOn = true;
-  Serial.println("Radio ready !");
   return true;
 }
 
 const char* getFileToPlay() {
-  if (testMode) {
-    return random(0, 2) == 0 ? "/test.wav" : "/testing.wav";
+  switch (playerMode) {
+    case TEST:
+      return random(0, 2) == 0 ? "/testing.mp3" : "/test.mp3";
+
+    case CONTEST:
+      return random(0, 2) == 0 ? "/cq-yota-contest-foxtrot-contest.mp3" : "/cq-yota-contest-foxtrot-florida-cq-contest.mp3";
+
+    case NORMAL:
+    default:
+      return random(0, 2) == 0 ? "/cq-florida-florida.mp3" : "/cq-foxtrot-florida.mp3";
   }
-  
-  if (contestMode) {
-    return random(0, 2) == 0 ? "/cq-yota-contest-foxtrot.wav" : "/cq-yota-contest-foxtrot-florida-cq-contest.wav";
-  }
-  
-  return random(0, 2) == 0 ? "/cq-florida-florida.wav" : "/cq-foxtrot-florida.wav";
 }
 
-String getStringMode(int mode) {
+bool isModeUnknown(byte mode) {
   switch (mode) {
     case CAT_MODE_LSB:
-        return "LSB";
+      return false;
 
     case CAT_MODE_USB:
-        return "USB";
+      return false;
 
     case CAT_MODE_FM:
-        return "FM ";
+      return false;
 
     case CAT_MODE_FMN:
-        return "FMN";
+      return false;
+
+    case CAT_MODE_DIG:
+      return false;
+  }
+
+  return true;
+}
+
+String getStringMode(byte mode) {
+  switch (mode) {
+    case CAT_MODE_LSB:
+      return "LSB";
+
+    case CAT_MODE_USB:
+      return "USB";
+
+    case CAT_MODE_DIG:
+      return "DIG";
+
+    case CAT_MODE_FM:
+      return "FM ";
+
+    case CAT_MODE_FMN:
+      return "FMN";
   }
 
   return "UNK";
 }
 
-String getStringSMeter(int sMeterValue) {
+String getStringSMeter(byte sMeterValue) {
   if (sMeterValue < 10) {
     return String(sMeterValue);
   }
