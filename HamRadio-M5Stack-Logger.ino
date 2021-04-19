@@ -21,15 +21,18 @@ AudioFileSourceSD *file;
 AudioOutputI2S *out;
 AudioFileSourceID3 *id3;
 
+bool radioPowerOn = true;
+byte playerMode = NORMAL;
+bool autoMode = false;
+byte secondsBetweenPlaying = 5;
+
 unsigned long freq = 0;
 byte mode = 255;
 byte sMeter = 255;
-bool radioPowerOn = false;
-bool shouldRefresh = true;
 bool isTx = false;
-byte playerMode = TEST;
-bool autoMode = true;
-byte secondsBetweenPlaying = 5;
+
+bool shouldRefresh = true;
+
 unsigned long timerRadioRefresh = 0;
 unsigned long timerLoop = 0;
 
@@ -48,7 +51,9 @@ void setup() {
   radio.begin();
 
   if (radioPowerOn) {
-    checkRadio();
+    if (!checkRadio()) {
+      playerMode = TEST;
+    }
   }
   
   M5.Lcd.setBrightness(100);
@@ -57,10 +62,15 @@ void setup() {
 
 void loop() {
   M5.update();
+  radio.flushRX();
 
   bool newIsTx = radioPowerOn && radio.isTx();
   shouldRefresh |= newIsTx != isTx;
   isTx = newIsTx;
+
+  if (isTx) {
+    timerLoop = millis();
+  }
 
   if (!player->isRunning() && !isTx) {
     if (autoMode && (millis() - timerLoop) >= 1000 * secondsBetweenPlaying) {
@@ -72,16 +82,16 @@ void loop() {
         timerLoop = millis();
         shouldRefresh = true;
       } else if (M5.BtnC.wasReleased()) {
-        secondsBetweenPlaying += 5;
-        if (secondsBetweenPlaying > 35) {
+        secondsBetweenPlaying += 1;
+        if (secondsBetweenPlaying > 15) {
           secondsBetweenPlaying = 5;
         }
         timerLoop = millis();
         shouldRefresh = true;
-      } else if (M5.BtnA.pressedFor(2000, 2000)) {
+      } else if (M5.BtnA.pressedFor(1000, 1000)) {
         checkRadio();
         shouldRefresh = true;
-      } else if (M5.BtnB.pressedFor(2000, 2000)) {
+      } else if (M5.BtnB.pressedFor(1000, 1000)) {
         playAudioAndTx();
         shouldRefresh = true;
       } else if (M5.BtnC.pressedFor(1000, 1000)) {
@@ -97,10 +107,13 @@ void loop() {
     shouldRefresh = true;
   }
 
-  stopPlayerAndRxIfNeeded(false);
+  if (stopPlayerAndRxIfNeeded(false)) {
+    shouldRefresh = true;
+  }
 
   if (radioPowerOn) {
-    if (!isTx && (millis() - timerRadioRefresh) >= 1000) {
+    if (!player->isRunning() && !isTx && (millis() - timerRadioRefresh) >= 500) {
+      radio.flushRX();
       unsigned long newFreq = (unsigned int) (radio.getFrequency() / 100);
       shouldRefresh |= newFreq != freq;
       
@@ -126,7 +139,7 @@ void loop() {
       if (isTx) {
         M5.Lcd.setTextColor(RED);
         M5.Lcd.setTextSize(5);
-        M5.Lcd.drawString("TX !", 160, 80);
+        M5.Lcd.drawString("TX", 160, 70);
       } else {
         M5.Lcd.drawString("S-" + getStringSMeter(sMeter), 160, 40);
         M5.Lcd.progressBar(20, 60, 10, 10, sMeter / 15);
@@ -143,7 +156,7 @@ void loop() {
     if (player->isRunning()) {
       M5.Lcd.setTextColor(GREEN);
       M5.Lcd.setTextSize(5);
-      M5.Lcd.drawString("Playing !", 160, 140);
+      M5.Lcd.drawString("Playing", 160, 130);
     }
   
     M5.Lcd.setTextSize(3);
@@ -162,10 +175,9 @@ void loop() {
   shouldRefresh = false;
 
   delay(10);
-  radio.flushRX();
 }
 
-void stopPlayerAndRxIfNeeded(bool force) {
+bool stopPlayerAndRxIfNeeded(bool force) {
   if (player->isRunning()) {
     if (!player->loop() || force) {
       player->stop();
@@ -176,12 +188,18 @@ void stopPlayerAndRxIfNeeded(bool force) {
       rx();
 
       timerLoop = millis();
+      
+      return true;
     }
   }
 
   if (force) {
     rx();
+
+    return true;
   }
+
+  return false;
 }
 
 void tx() {
