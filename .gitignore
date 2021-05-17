@@ -1,1 +1,5 @@
+.pio
+CMakeListsPrivate.txt
+cmake-build-*/ 
 mp3
+.idea

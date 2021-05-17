@@ -1,0 +1,10 @@
+#ifndef HAMRADIO_M5STACK_LOGGER_LOG_H
+#define HAMRADIO_M5STACK_LOGGER_LOG_H
+
+
+class Log {
+
+};
+
+
+#endif //HAMRADIO_M5STACK_LOGGER_LOG_H
