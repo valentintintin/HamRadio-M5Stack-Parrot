@@ -33,7 +33,7 @@ public:
     byte getSecondsBeforePlaying() const;
     byte incrementSecondsBetweenPlaying(byte increment = 1);
     bool play();
-    bool stopIfNeededOtherwisePlay(bool force);
+    bool updateOrStopForce(bool forceStop);
 
     inline bool isActive() const {
         return active;

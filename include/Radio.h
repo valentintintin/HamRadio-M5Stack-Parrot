@@ -43,7 +43,7 @@ public:
         return currentMode;
     }
 
-    inline String getCurrentStringMode() const {
+    inline const char* getCurrentStringMode() const {
         return getStringMode(getCurrentMode());
     }
 
@@ -51,7 +51,7 @@ public:
         return currentSMeter;
     }
 
-    inline String getCurrentStringSMeter() const {
+    inline const char* getCurrentStringSMeter() const {
         return getStringSMeter(getCurrentSMeter());
     }
 
@@ -59,8 +59,9 @@ public:
         return currentFreq;
     }
 
-    inline String getCurrentStringFreq() const {
-        return String(getCurrentFreq() / 1000.0, 3) + " MHz ";
+    inline void getCurrentStringFreq(char *dest) const {
+        dtostrf(getCurrentFreq() / 1000.0, (3 + 2), 3, dest);
+        strcat_P(dest, PSTR(" Mhz"));
     }
 
 private:
@@ -79,8 +80,8 @@ private:
     FT857 radio;
 
     bool isModeUnknown(byte mode) const ;
-    String getStringMode(byte mode) const;
-    String getStringSMeter(byte sMeterValue) const;
+    const char* getStringMode(byte mode) const;
+    const char * getStringSMeter(byte sMeterValue) const;
 };
 
 

@@ -36,6 +36,7 @@ public:
     Preferences* prefs;
     Screen screen;
 private:
+    char bufferScreen[255];
     Radio* radio;
     Player* player;
 

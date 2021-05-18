@@ -1,20 +1,13 @@
 #include "Radio.h"
 
 Radio::Radio(System* system) : system(system), timerRefresh(Timer(TIME_BETWEEN_REFRESH_RADIO)) {
+    radio.begin();
 }
 
 bool Radio::init() {
     DPRINTLN(F("[Radio] Init"));
 
-    radio.begin();
-
-    if (system->prefs->getBool(PSTR("active"), false)) {
-        return checkRadio();
-    }
-
-    DPRINTLN(F("[Radio] Init KO"));
-
-    return false;
+    return checkRadio();
 }
 
 bool Radio::checkRadio() {
@@ -46,42 +39,35 @@ bool Radio::update() {
     changedDetected = false;
 
     if (active) {
-        DPRINTLN(F("[Radio] Update"));
-
         radio.flushRX();
 
-        DPRINT(F("[Radio] Get TX state "));
         bool newTxState = radio.isTx();
-
-        if (newTxState != txState) {
-            changedDetected = true;
-        }
+        changedDetected = newTxState != txState;
         txState = newTxState;
-        DPRINTLN(txState);
 
         if (isRx() && timerRefresh.hasExpired()) {
-            DPRINT(F("[Radio] Get freq"));
             unsigned long newFreq = (unsigned int) (radio.getFrequency() / 100);
             changedDetected |= newFreq != currentFreq;
             currentFreq = newFreq;
-            DPRINTLN(currentFreq);
 
-            DPRINT(F("[Radio] Get mode"));
             byte newMode = radio.getMode();
             changedDetected |= newMode != currentMode;
             currentMode = newMode;
-            DPRINTLN(currentMode);
 
-            DPRINT(F("[Radio] Get s-meter"));
             byte newSMeter = radio.getSMeter();
             changedDetected |= newSMeter != currentSMeter;
             currentSMeter = newSMeter;
-            DPRINTLN(currentSMeter);
 
             timerRefresh.restart();
         }
 
-        DPRINT(F("[Radio] Change detected ")); DPRINTLN(hasChanged());
+        if (hasChanged()) {
+            DPRINTLN(F("[Radio] Change detected"));
+            DPRINT(F("\tPTT (TX) ")); DPRINTLN(txState);
+            DPRINT(F("\tFreq ")); DPRINTLN(currentFreq);
+            DPRINT(F("\tMode ")); DPRINTLN(currentMode);
+            DPRINT(F("\tS-Meter ")); DPRINTLN(currentSMeter);
+        }
     }
 
     return hasChanged();
@@ -151,54 +137,79 @@ bool Radio::isModeUnknown(byte mode) const {
     }
 }
 
-String Radio::getStringMode(byte mode) const {
+const char* Radio::getStringMode(byte mode) const {
     switch (mode) {
         case CAT_MODE_LSB:
-            return "LSB";
+            return PSTR("LSB");
 
         case CAT_MODE_USB:
-            return "USB";
+            return PSTR("USB");
 
         case CAT_MODE_DIG:
-            return "DIG";
+            return PSTR("DIG");
 
         case CAT_MODE_FM:
-            return "FM ";
+            return PSTR("FM");
 
         case CAT_MODE_PKT:
-            return "PKT";
+            return PSTR("PKT");
 
         default:
-            return "UNK";
+            return PSTR("UNK");
     }
 }
 
-String Radio::getStringSMeter(byte sMeterValue) const {
-    if (sMeterValue < 10) {
-        return "S" + String(sMeterValue);
-    }
-    else {
-        switch (sMeterValue) {
-            case 10:
-                return "S9+10";
+const char* Radio::getStringSMeter(byte sMeterValue) const {
+    switch (sMeterValue) {
+        case 0:
+            return PSTR("S0");
 
-            case 11:
-                return "S9+20";
+        case 1:
+            return PSTR("S1");
 
-            case 12:
-                return "S9+30";
+        case 2:
+            return PSTR("S2");
 
-            case 13:
-                return "S9+40";
+        case 3:
+            return PSTR("S3");
 
-            case 14:
-                return "S9+50";
+        case 4:
+            return PSTR("S4");
 
-            case 15:
-                return "S9+60";
+        case 5:
+            return PSTR("S5");
 
-            default:
-                return "S-UNK";
-        }
+        case 6:
+            return PSTR("S6");
+
+        case 7:
+            return PSTR("S7");
+
+        case 8:
+            return PSTR("S8");
+
+        case 9:
+            return PSTR("S9");
+
+        case 10:
+            return PSTR("S9+10");
+
+        case 11:
+            return PSTR("S9+20");
+
+        case 12:
+            return PSTR("S9+30");
+
+        case 13:
+            return PSTR("S9+40");
+
+        case 14:
+            return PSTR("S9+50");
+
+        case 15:
+            return PSTR("S9+60");
+
+        default:
+            return PSTR("S-UNK");
     }
 }

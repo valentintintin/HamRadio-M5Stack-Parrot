@@ -3,7 +3,7 @@
 
 #include "System.h"
 
-System::System(Preferences *prefs): prefs(prefs) {
+System::System(Preferences *prefs): prefs(prefs), radio(new Radio(this)), player(new Player(this)) {
 }
 
 void System::init() {
@@ -13,12 +13,7 @@ void System::init() {
 
     randomSeed(analogRead(0));
 
-    SD.begin();
-
     prefs->begin(PSTR("logger"));
-
-    radio = new Radio(this);
-    player = new Player(this);
 
     DPRINTLN(F("[System] Start OK"));
 
@@ -32,14 +27,14 @@ void System::check() {
     radio->init();
     player->init();
 
-    DPRINTLN(F("[System] Check OK"));
+    DPRINTLN(F("[System] Check end"));
 }
 
 void System::update() {
     M5.update();
     shouldRefreshScreen |= radio->update();
 
-    if (radio->isTx() && !player->isPlaying()) { // I'm speaking without playing
+    if (shouldRefreshScreen && !player->isPlaying()) { // Change on radio and not playing
         DPRINTLN(F("[System] Radio TX & Player stopped"));
         player->setAutoModeState(false);
     }
@@ -84,6 +79,7 @@ void System::update() {
     }
 
     if (M5.BtnA.wasPressed()) {
+        DPRINTLN(F("[System] Button A"));
         stopAll();
         shouldRefreshScreen = true;
     }
@@ -97,15 +93,19 @@ void System::update() {
             M5.Lcd.clear();
             M5.Lcd.setTextColor(WHITE);
             M5.Lcd.setTextSize(3);
-            M5.Lcd.drawString(radio->getCurrentStringFreq() + radio->getCurrentStringMode(), 160, 0);
+
+            radio->getCurrentStringFreq(bufferScreen);
+            strcat_P(bufferScreen, PSTR(" "));
+            strcat(bufferScreen, radio->getCurrentStringMode());
+            M5.Lcd.drawString(bufferScreen, 160, 0);
 
             if (radio->isTx()) {
                 M5.Lcd.setTextColor(RED);
                 M5.Lcd.setTextSize(5);
-                M5.Lcd.drawString("TX", 160, 70);
+                M5.Lcd.drawString(PSTR("TX"), 160, 70);
             } else {
                 M5.Lcd.drawString(radio->getCurrentStringSMeter(), 160, 40);
-                M5.Lcd.progressBar(20, 60, 220, 20, radio->getCurrentSMeter() / (15 * 100));
+                M5.Lcd.progressBar(20, 60, 280, 20, radio->getCurrentSMeter() * (100 / 15));
             }
         }
     } else if (shouldRefreshScreen) {
@@ -131,12 +131,12 @@ void System::update() {
 
             M5.Lcd.setTextColor(CYAN);
             if (player->isAutoModeEnabled()) {
-                M5.Lcd.drawString(PSTR("Auto "), 0, 190);
-                M5.Lcd.drawString(String(lastSecondsBeforePlaying) + "s", 280, 190);
+                sprintf_P(bufferScreen, PSTR("Auto %ds"), lastSecondsBeforePlaying);
             } else {
-                M5.Lcd.drawString(PSTR("No auto "), 0, 190);
-                M5.Lcd.drawString(String(player->getSecondsBetweenPlaying()) + "s", 280, 190);
+                sprintf_P(bufferScreen, PSTR("No auto %ds"), player->getSecondsBetweenPlaying());
             }
+
+            M5.Lcd.drawString(bufferScreen, 0, 190);
         } else {
             M5.Lcd.setTextColor(RED);
             M5.Lcd.drawString(PSTR("No SD"), 0, 220);
@@ -148,7 +148,7 @@ void System::update() {
 
 bool System::stopPlayerAndRxIfNeeded(bool force) {
     if (player->isPlaying()) {
-        if (player->stopIfNeededOtherwisePlay(force)) {
+        if (player->updateOrStopForce(force)) {
             radio->rx();
 
             return true;

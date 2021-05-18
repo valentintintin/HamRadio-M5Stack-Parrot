@@ -1,8 +1,10 @@
 #include "Player.h"
 
 Player::Player(System* system): system(system), playerOut(AudioOutputI2S(0, 1)) {
+    SD.begin();
+
     playerOut.SetOutputModeMono(true);
-    playerOut.SetGain(1.0);
+    playerOut.SetGain(3.5);
 }
 
 bool Player::init() {
@@ -110,7 +112,7 @@ void Player::setSecondsBetweenPlaying(byte seconds) {
         secondsBetweenPlaying = seconds;
         system->prefs->putUChar(PSTR("sBetweenPlay"), secondsBetweenPlaying);
         timerLoop.setInterval(secondsBetweenPlaying * 1000);
-        setAutoModeState(false);
+        timerLoop.restart();
     }
 }
 
@@ -138,7 +140,7 @@ bool Player::play() {
         playerFile = new AudioFileSourceSD(fileToPlay);
 
         if (!player.begin(playerFile, &playerOut)) {
-            stopIfNeededOtherwisePlay(true);
+            updateOrStopForce(true);
             system->screen.showErrorMessage(PSTR("Audio KO"));
             DPRINTLN(F("[Player] Play KO"));
             return false;
@@ -154,8 +156,8 @@ bool Player::play() {
     return false;
 }
 
-bool Player::stopIfNeededOtherwisePlay(bool force) {
-    if (!player.loop() || force) {
+bool Player::updateOrStopForce(bool forceStop) {
+    if (!player.loop() || forceStop) {
         DPRINTLN(F("[Player] Stop"));
 
         player.stop();
