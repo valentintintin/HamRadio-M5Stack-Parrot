@@ -8,19 +8,24 @@
 #define MAX_FILE_NAME 255
 #define MAX_FILE_NAME_TO_PLAY MAX_FILE_NAME + MAX_CALL_NAME + 4 // 4 = / + one more / and safety
 
+struct AudioFile {
+    char filename[MAX_FILE_NAME_TO_PLAY];
+    bool isMp3;
+};
+
 class Call {
 public:
     explicit Call(const char* callName);
 
     void addFile(const char* fileName);
-    char* getFileToPlay();
+    struct AudioFile* getFileToPlay();
 
     inline byte getNbFiles() const {
         return nbFiles;
     }
 
-    inline char* getFile(int index) {
-        return files[index];
+    inline struct AudioFile* getFile(int index) {
+        return &files[index];
     }
 
     inline char* getName() {
@@ -28,7 +33,7 @@ public:
     }
 private:
     char name[MAX_CALL_NAME];
-    char files[MAX_FILES_FOR_CALL][MAX_FILE_NAME_TO_PLAY];
+    struct AudioFile files[MAX_FILES_FOR_CALL];
     byte nbFiles = 0;
 };
 

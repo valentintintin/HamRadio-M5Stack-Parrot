@@ -32,7 +32,7 @@ bool Player::init() {
                 Call* call = new Call(fileRoot.name());
 
                 File soundFile = fileRoot.openNextFile();
-                while (soundFile && !soundFile.isDirectory()) {
+                while (soundFile && !soundFile.isDirectory() && (strstr_P(soundFile.name(), PSTR(".mp3")) != nullptr || strstr_P(soundFile.name(), PSTR(".wav")) != nullptr)) {
                     DPRINT(F("[Player] Add file ")); DPRINTLN(soundFile.name());
 
                     call->addFile(soundFile.name());
@@ -55,7 +55,7 @@ bool Player::init() {
             Call* call = calls[iCall];
             DPRINT(F("[Player] Call ")); DPRINT(call->getName()); DPRINT(F(" nbFiles ")); DPRINTLN(call->getNbFiles());
             for (byte iCallFile = 0; iCallFile < call->getNbFiles(); iCallFile++) {
-                DPRINT(F("\tFile ")); DPRINTLN(call->getFile(iCallFile));
+                DPRINT(F("\tFile ")); DPRINTLN(call->getFile(iCallFile)->filename);
             }
         }
 
@@ -124,7 +124,7 @@ byte Player::incrementSecondsBetweenPlaying(byte increment) {
 bool Player::play() {
     DPRINTLN(F("[Player] Play"));
 
-    if (!player.isRunning()) {
+    if (!currentPlayer->isRunning()) {
         Call* callUsed = getCurrentCallUsed();
         if (callUsed == nullptr) {
             system->screen.showErrorMessage(PSTR("Call KO"));
@@ -132,14 +132,17 @@ bool Player::play() {
             return false;
         }
 
-        fileToPlay[0] = '\0';
-        strcpy(fileToPlay, callUsed->getFileToPlay());
+        struct AudioFile *fileToPlayInfo = callUsed->getFileToPlay();
 
-        DPRINT(F("[Player] Play ")); DPRINTLN(fileToPlay);
+        fileToPlay[0] = '\0';
+        strcpy(fileToPlay, fileToPlayInfo->filename);
+
+        DPRINT(F("[Player] Play ")); DPRINT(fileToPlayInfo->isMp3 ? F("MP3 ") : F("WAV ")); DPRINTLN(fileToPlay);
 
         playerFile = new AudioFileSourceSD(fileToPlay);
+        currentPlayer = fileToPlayInfo->isMp3 ? (AudioGenerator*) &playerMp3 : (AudioGenerator*) &playerWav;
 
-        if (!player.begin(playerFile, &playerOut)) {
+        if (!currentPlayer->begin(playerFile, &playerOut)) {
             updateOrStopForce(true);
             system->screen.showErrorMessage(PSTR("Audio KO"));
             DPRINTLN(F("[Player] Play KO"));
@@ -157,10 +160,10 @@ bool Player::play() {
 }
 
 bool Player::updateOrStopForce(bool forceStop) {
-    if (!player.loop() || forceStop) {
+    if (!currentPlayer->loop() || forceStop) {
         DPRINTLN(F("[Player] Stop"));
 
-        player.stop();
+        currentPlayer->stop();
 
         delete playerFile;
 

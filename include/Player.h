@@ -1,14 +1,9 @@
 #ifndef HAMRADIO_M5STACK_LOGGER_PLAYER_H
 #define HAMRADIO_M5STACK_LOGGER_PLAYER_H
 
-#define USE_MP3
-
-#ifdef USE_MP3
-    #include <AudioGeneratorMP3.h>
-    #include <AudioFileSourceID3.h>
-#else
-    #include <AudioGeneratorWAV.h>
-#endif
+#include <AudioGeneratorMP3.h>
+#include <AudioFileSourceID3.h>
+#include <AudioGeneratorWAV.h>
 #include <AudioOutputI2S.h>
 #include <AudioFileSourceSD.h>
 
@@ -40,7 +35,7 @@ public:
     }
 
     inline bool isPlaying() {
-        return player.isRunning();
+        return currentPlayer->isRunning();
     }
 
     inline Call* getCurrentCallUsed() const {
@@ -66,12 +61,10 @@ public:
 private:
     System* system;
 
-#ifdef USE_MP3
     // Use 8000 Hz sampling rate and 16 bits file encoding
-    AudioGeneratorMP3 player;
-#else
-    AudioGeneratorWAV player;
-#endif
+    AudioGeneratorMP3 playerMp3;
+    AudioGeneratorWAV playerWav;
+    AudioGenerator *currentPlayer = &playerMp3;
     AudioOutputI2S playerOut;
     AudioFileSourceSD *playerFile;
     char fileToPlay[MAX_FILE_NAME_TO_PLAY];
