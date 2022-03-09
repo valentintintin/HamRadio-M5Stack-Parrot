@@ -24,6 +24,7 @@ void System::check() {
     DPRINTLN(F("[System] Check"));
 
     screen.init();
+
     radio->init();
     player->init();
 
@@ -34,7 +35,7 @@ void System::update() {
     M5.update();
     shouldRefreshScreen |= radio->update();
 
-    if (shouldRefreshScreen && !player->isPlaying()) { // Change on radio and not playing
+    if (radio->hasChanged(CHANGE_FREQ | CHANGE_MODE | CHANGE_TX_STATE) && !player->isPlaying()) { // Change on radio and not playing
         DPRINTLN(F("[System] Radio TX & Player stopped"));
         player->setAutoModeState(false);
     }

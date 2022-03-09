@@ -36,33 +36,33 @@ bool Radio::checkRadio() {
 }
 
 bool Radio::update() {
-    changedDetected = false;
+    changedDetected = NOTHING;
 
     if (active) {
         radio.flushRX();
 
         bool newTxState = radio.isTx();
-        changedDetected = newTxState != txState;
+        if (newTxState != txState) changedDetected |= CHANGE_TX_STATE;
         txState = newTxState;
 
         if (isRx() && timerRefresh.hasExpired()) {
             unsigned long newFreq = (unsigned int) (radio.getFrequency() / 100);
-            changedDetected |= newFreq != currentFreq;
+            if (newFreq != currentFreq) changedDetected |= CHANGE_FREQ;
             currentFreq = newFreq;
 
             byte newMode = radio.getMode();
-            changedDetected |= newMode != currentMode;
+            if (newMode != currentMode) changedDetected |= CHANGE_MODE;
             currentMode = newMode;
 
             byte newSMeter = radio.getSMeter();
-            changedDetected |= newSMeter != currentSMeter;
+            if (newSMeter != currentSMeter) changedDetected |= CHANGE_S_METER;
             currentSMeter = newSMeter;
 
             timerRefresh.restart();
         }
 
         if (hasChanged()) {
-            DPRINTLN(F("[Radio] Change detected"));
+            DPRINT(F("[Radio] Change detected : ")); DPRINTLN(changedDetected);
             DPRINT(F("\tPTT (TX) ")); DPRINTLN(txState);
             DPRINT(F("\tFreq ")); DPRINTLN(currentFreq);
             DPRINT(F("\tMode ")); DPRINTLN(currentMode);

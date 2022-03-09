@@ -30,4 +30,4 @@ add_custom_target(
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable(Z_DUMMY_TARGET ${SRC_LIST} src/Radio.cpp include/Radio.h src/Player.cpp include/Player.h src/System.cpp include/System.h src/Call.cpp include/Call.h src/Log.cpp include/Log.h src/Logger.cpp include/Logger.h src/Screen.cpp include/Screen.h)
+add_executable(Z_DUMMY_TARGET ${SRC_LIST})

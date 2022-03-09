@@ -9,6 +9,13 @@
 #define TIME_BETWEEN_REFRESH_RADIO 350
 #define TIME_TIMEOUT_RADIO 1000
 
+#define CHANGE_ALL 0xFF
+#define NOTHING 0
+#define CHANGE_FREQ 0b1
+#define CHANGE_MODE 0b10
+#define CHANGE_S_METER 0b100
+#define CHANGE_TX_STATE 0b1000
+
 class System;
 
 class Radio {
@@ -27,8 +34,8 @@ public:
         return active;
     }
 
-    inline bool hasChanged() const {
-        return changedDetected;
+    inline bool hasChanged(byte mode = CHANGE_ALL) const {
+        return (changedDetected & mode) > 0;
     }
 
     inline bool isTx() const {
@@ -68,7 +75,7 @@ private:
     System* system;
 
     bool active = false;
-    bool changedDetected = false;
+    byte changedDetected = 0;
 
     unsigned long currentFreq = 0;
     byte currentMode = 255;

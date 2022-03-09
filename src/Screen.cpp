@@ -6,6 +6,9 @@
 void Screen::init() {
     M5.Lcd.setTextDatum(MC_DATUM);
     M5.Lcd.setBrightness(100);
+    M5.Lcd.setRotation(3); // 180° (buttons top)
+
+    showStatusMessage(PSTR("Init..."));
 }
 
 void Screen::showErrorMessage(const String &str) const {
