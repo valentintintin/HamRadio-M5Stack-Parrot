@@ -78,7 +78,7 @@ Call* Player::setCurrentCallIndexUsed(byte callIndex) {
 
         DPRINT(F("[Player] set call ")); DPRINT(callIndex); DPRINT(F(" ")); DPRINTLN(getCurrentCallUsed()->getName());
 
-        system->prefs->putBool(PSTR("callIndexUsed"), currentCallIndexUsed);
+        system->prefs->putUChar(PSTR("callIndexUsed"), currentCallIndexUsed);
         setAutoModeState(false);
     }
 
