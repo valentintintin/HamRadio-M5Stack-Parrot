@@ -62,8 +62,8 @@ void System::update() {
                 DPRINTLN(F("[System] Button B long"));
                 playAudioAndTx();
                 shouldRefreshScreen = true;
-            } else if (M5.BtnC.pressedFor(1000, 1000)) {
-                DPRINTLN(F("[System] Button C long"));
+            } else if (M5.BtnA.wasPressed()) {
+                DPRINTLN(F("[System] Button A"));
                 player->incrementCurrentCallIndexUsed();
                 shouldRefreshScreen = true;
             }
